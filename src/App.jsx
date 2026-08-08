@@ -11,7 +11,8 @@ import {
   BookOpen,
   Activity,
   Flame,
-  Wind
+  Wind,
+  User
 } from 'lucide-react';
 
 // --- DATABASE & MAPPINGS ---
@@ -66,6 +67,10 @@ const ROLE_REQUIREMENTS = {
 };
 
 export default function App() {
+  // NEW STATE: Authentication and User ID
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [workerId, setWorkerId] = useState('');
+
   const [activeTab, setActiveTab] = useState('checklist');
   const [selectedRole, setSelectedRole] = useState('Underground Miner');
   const [checklistState, setChecklistState] = useState({});
@@ -90,7 +95,7 @@ export default function App() {
   }, [selectedRole]);
 
   const handleToggleCheck = (id) => {
-    if (checklistState[id]?.defective) return; // Can't check a defective item
+    if (checklistState[id]?.defective) return;
     setChecklistState(prev => ({
       ...prev,
       [id]: { ...prev[id], checked: !prev[id].checked }
@@ -106,17 +111,15 @@ export default function App() {
   const reportIssue = () => {
     if (!activeIssueItem || !issueDescription.trim()) return;
 
-    // Update checklist state
     setChecklistState(prev => ({
       ...prev,
       [activeIssueItem.id]: { checked: false, defective: true, note: issueDescription }
     }));
 
-    // Generate Alert for Supervisor
     const newAlert = {
       id: Date.now(),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      user: `Worker (${selectedRole})`,
+      user: `${workerId || 'Worker'} (${selectedRole})`,
       issue: `${activeIssueItem.name}: ${issueDescription}`,
       status: 'Blocked'
     };
@@ -125,7 +128,6 @@ export default function App() {
     setShowIssueModal(false);
   };
 
-  // Calculate progress
   const requiredIds = Object.keys(checklistState);
   const totalItems = requiredIds.length;
   const checkedItems = requiredIds.filter(id => checklistState[id]?.checked).length;
@@ -138,6 +140,71 @@ export default function App() {
     return EQUIPMENT_DB[category].find(item => item.id === id);
   };
 
+  const handleLogin = (e) => {
+    e.preventDefault();
+    setIsAuthenticated(true);
+  };
+
+  // --- LOGIN SCREEN RENDER ---
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+          
+          <div className="text-center mb-8">
+            <div className="bg-amber-500 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-md">
+              <HardHat className="text-slate-900 w-10 h-10" strokeWidth={2.5} />
+            </div>
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">MineSafe Portal</h1>
+            <p className="text-slate-500">Sign in to start your shift</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">Worker ID Number</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User className="h-5 w-5 text-slate-400" />
+                </div>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="Enter your ID (e.g. EMP-042)" 
+                  value={workerId}
+                  onChange={(e) => setWorkerId(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all text-slate-700"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">Assigned Shift / Role</label>
+              <select 
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none bg-white text-slate-800 font-medium appearance-none cursor-pointer"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23334155'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1.2em 1.2em' }}
+              >
+                {Object.keys(ROLE_REQUIREMENTS).map(role => (
+                  <option key={role} value={role}>{role}</option>
+                ))}
+              </select>
+            </div>
+
+            <button 
+              type="submit"
+              className="w-full bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold text-lg py-4 rounded-lg shadow-sm transition-all mt-4"
+            >
+              Begin Pre-Shift Check
+            </button>
+          </form>
+
+        </div>
+      </div>
+    );
+  }
+
+  // --- MAIN APP RENDER (unchanged, just nested under the if statement) ---
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-800 flex flex-col md:flex-row">
       
@@ -145,8 +212,18 @@ export default function App() {
       <div className="w-full md:w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-10">
         <div className="p-6 border-b border-slate-700 flex items-center gap-3">
           <HardHat className="text-amber-500 w-8 h-8" />
-          <h1 className="text-xl font-bold text-white tracking-wide">MineSafe Dashboard</h1>
+          <h1 className="text-xl font-bold text-white tracking-wide">MineSafe</h1>
         </div>
+        
+        {/* User Info Display */}
+        <div className="px-6 py-4 border-b border-slate-800 bg-slate-800/50">
+          <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Active User</p>
+          <p className="text-white font-semibold flex items-center gap-2">
+            <User className="w-4 h-4 text-amber-500" /> {workerId || 'EMP-000'}
+          </p>
+          <p className="text-sm text-slate-400 mt-1">{selectedRole}</p>
+        </div>
+
         <nav className="flex-1 px-4 py-6 space-y-2">
           <button 
             onClick={() => setActiveTab('checklist')}
@@ -174,6 +251,16 @@ export default function App() {
             <BookOpen className="w-5 h-5" /> Emergency Guide
           </button>
         </nav>
+        
+        {/* Logout Button */}
+        <div className="p-4 border-t border-slate-700">
+          <button 
+            onClick={() => setIsAuthenticated(false)}
+            className="w-full py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors text-sm font-semibold"
+          >
+            End Shift / Sign Out
+          </button>
+        </div>
       </div>
 
       {/* MAIN CONTENT AREA */}
@@ -186,19 +273,6 @@ export default function App() {
               <h2 className="text-3xl font-bold text-slate-900 mb-2">Shift Clearance Checklist</h2>
               <p className="text-slate-600">Verify your equipment before entering the mine.</p>
             </header>
-
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Select Your Role</label>
-              <select 
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                className="w-full md:w-1/2 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
-              >
-                {Object.keys(ROLE_REQUIREMENTS).map(role => (
-                  <option key={role} value={role}>{role}</option>
-                ))}
-              </select>
-            </div>
 
             {/* Status Banner */}
             {isBlocked ? (
